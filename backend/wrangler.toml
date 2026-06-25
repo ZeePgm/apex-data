@@ -1,0 +1,11 @@
+name = "apex-data-api"
+main = "src/index.ts"
+compatibility_date = "2025-06-25"
+
+# Cloudflare KV 用于缓存 API 响应
+# kv_namespaces = [
+#   { binding = "API_CACHE", id = "xxx" }
+# ]
+
+[observability]
+enabled = true
