@@ -7,7 +7,7 @@ const app = new Hono()
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:5173", "https://apex-data-rho.vercel.app"],
+    origin: ["http://localhost:5173", "https://apex-data-rho.vercel.app", "https://apex-data-api.admitted-tower.workers.dev"],
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type"],
   })
