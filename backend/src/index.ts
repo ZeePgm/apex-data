@@ -1,7 +1,10 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
+import type { Env } from "./types"
+import { getPlayerProfile, PlayerNotFoundError, UpstreamError as TUpstreamError } from "./services/tracker"
+import { getMapRotation, UpstreamError as MUpstreamError } from "./services/mozambique"
 
-const app = new Hono()
+const app = new Hono<{ Bindings: Env }>()
 
 // CORS: 允许前端域名访问
 app.use(
@@ -16,24 +19,124 @@ app.use(
 // 健康检查
 app.get("/", (c) => c.json({ status: "ok", name: "apex-data-api" }))
 
-// API 路由
-const api = new Hono()
+// ========== In-memory fallback cache ==========
+// 因为 Cloudflare KV 需要配置，MVP 阶段先用内存缓存
+const memoryCache = new Map<string, { data: unknown; expiresAt: number }>()
+
+async function cachedGet(key: string, ttlSeconds: number, fetchFn: () => Promise<unknown>, c: HonoContext) {
+  // Try KV first
+  const kv = c.env.API_CACHE
+  if (kv) {
+    try {
+      const cached = await kv.get(key, "json")
+      if (cached) {
+        c.header("X-Cache", "HIT")
+        return cached
+      }
+    } catch {
+      // KV read failed, fall through to fetch
+    }
+  }
+
+  // Try memory cache
+  const mem = memoryCache.get(key)
+  if (mem && mem.expiresAt > Date.now()) {
+    c.header("X-Cache", "HIT")
+    return mem.data
+  }
+
+  // Fetch fresh
+  const data = await fetchFn()
+
+  // Store in KV
+  if (kv) {
+    try {
+      await kv.put(key, JSON.stringify(data), { expirationTtl: ttlSeconds })
+    } catch {
+      // KV write failed, continue
+    }
+  }
+
+  // Store in memory
+  memoryCache.set(key, { data, expiresAt: Date.now() + ttlSeconds * 1000 })
+  c.header("X-Cache", "MISS")
+  return data
+}
+
+// Helper type for Hono context in the cachedGet helper
+type HonoContext = {
+  env: Env
+  header: (name: string, value: string) => void
+}
+
+// ========== API 路由 ==========
+const api = new Hono<{ Bindings: Env }>()
 
 // 地图轮换
 api.get("/map-rotation", async (c) => {
-  // TODO: 对接 Mozambique API
-  return c.json({ message: "not implemented yet" })
+  try {
+    const data = await cachedGet("map-rotation", 300, () => getMapRotation(c.env), c)
+    return c.json(data)
+  } catch (err) {
+    if (err instanceof MUpstreamError) {
+      return c.json({ error: err.message }, 502)
+    }
+    return c.json({ error: "Internal server error" }, 500)
+  }
 })
 
 // 玩家查询
 api.get("/player/:platform/:name", async (c) => {
   const { platform, name } = c.req.param()
-  // TODO: 对接 Tracker.gg API
-  return c.json({
-    platform,
-    name,
-    message: "not implemented yet",
-  })
+
+  // Validate platform
+  const validPlatforms = ["origin", "xbl", "psn"]
+  if (!validPlatforms.includes(platform)) {
+    return c.json({ error: "Invalid platform. Use: origin, xbl, or psn" }, 400)
+  }
+
+  try {
+    const cacheKey = `player:${platform}:${name.toLowerCase()}`
+    const data = await cachedGet(cacheKey, 1800, () => getPlayerProfile(platform, name, c.env), c)
+    return c.json(data)
+  } catch (err) {
+    if (err instanceof PlayerNotFoundError) {
+      return c.json({ error: `Player not found: ${name} on ${platform}` }, 404)
+    }
+    if (err instanceof TUpstreamError) {
+      return c.json({ error: err.message }, 502)
+    }
+    return c.json({ error: "Internal server error" }, 500)
+  }
+})
+
+// Debug: 测试 Worker 对外连接能力
+app.get("/debug/connectivity", async (c) => {
+  const results: Record<string, unknown> = {}
+  // Test 1: simple public API
+  try {
+    const r = await fetch("https://httpbin.org/get?test=1")
+    results.httpbin = { ok: r.ok, status: r.status }
+  } catch (e) {
+    results.httpbin = { error: (e as Error).message }
+  }
+  // Test 2: Tracker.gg reachable
+  try {
+    const r = await fetch("https://public-api.tracker.gg/v2/apex/standard/profile/origin/ericzhang", {
+      headers: { "TRN-Api-Key": c.env.TRACKER_API_KEY, "Accept": "application/json" },
+    })
+    results.tracker = { ok: r.ok, status: r.status }
+  } catch (e) {
+    results.tracker = { error: (e as Error).message }
+  }
+  // Test 3: Mozambique reachable
+  try {
+    const r = await fetch(`https://api.mozambiquehe.re/maprotation?version=2&auth=${c.env.MOZAMBIQUE_API_KEY}`)
+    results.mozambique = { ok: r.ok, status: r.status }
+  } catch (e) {
+    results.mozambique = { error: (e as Error).message }
+  }
+  return c.json(results)
 })
 
 // 挂载 /api 路由

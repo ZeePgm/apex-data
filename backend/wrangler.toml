@@ -1,11 +1,16 @@
 name = "apex-data-api"
 main = "src/index.ts"
 compatibility_date = "2025-06-25"
+account_id = "298672578e36aa170df1d30f29703a0d"
 
 # Cloudflare KV 用于缓存 API 响应
 # kv_namespaces = [
 #   { binding = "API_CACHE", id = "xxx" }
 # ]
+
+[vars]
+TRACKER_API_KEY = "98c1a5cf-793f-4932-8c2d-ae73dfa5b0d7"
+MOZAMBIQUE_API_KEY = "df4864ce3a1c5b947ed32867dbb9d43f"
 
 [observability]
 enabled = true
