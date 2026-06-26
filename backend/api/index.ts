@@ -1,7 +1,6 @@
 // Vercel Serverless 入口 — 与 Cloudflare Workers 共用同一个 Hono app
-// 通过环境变量注入 API Key，而非 wrangler.toml bindings
+// Hono 的 app.fetch 与 Web Fetch API 兼容，可直接作为 Vercel serverless handler
 /// <reference types="node" />
-import { handle } from "hono/vercel"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import type { Env } from "../src/types"
@@ -127,4 +126,4 @@ app.get("/api/debug/connectivity", async (c) => {
   return c.json(results)
 })
 
-export default handle(app)
+export default app
