@@ -70,26 +70,25 @@ app.get("/api/player/:platform/:name", async (c) => {
   const cacheKey = `player:${platform}:${name.toLowerCase()}`
   const env = getEnv()
 
-  // Try Tracker.gg first
+  // Try Mozambique first (cached) — provides player stats + map rotation in one API
   try {
-    const data = await cachedGet(cacheKey, 1800, () => getPlayerProfile(platform, name, env), c)
-    c.header("X-Data-Source", "tracker.gg")
+    const data = await cachedGet(cacheKey + ":moz", 1800, () => getPlayerProfileMozambique(platform, name, env), c)
+    c.header("X-Data-Source", "mozambique")
     return c.json(data)
-  } catch (err) {
-    if (err instanceof TUpstreamError) {
-      try {
-        const data = await cachedGet(cacheKey + ":moz", 1800, () => getPlayerProfileMozambique(platform, name, env), c)
-        c.header("X-Data-Source", "mozambique")
-        return c.json(data)
-      } catch (mozErr) {
-        const mozMsg = mozErr instanceof Error ? mozErr.message : String(mozErr)
-        return c.json({ error: `Both data sources failed. Tracker.gg: ${err.message} | Mozambique: ${mozMsg}` }, 502)
+  } catch (mozErr) {
+    // If Mozambique fails, try Tracker.gg
+    const mozMsg = mozErr instanceof Error ? mozErr.message : String(mozErr)
+    try {
+      const data = await cachedGet(cacheKey, 1800, () => getPlayerProfile(platform, name, env), c)
+      c.header("X-Data-Source", "tracker.gg")
+      return c.json(data)
+    } catch (tErr) {
+      const tMsg = tErr instanceof Error ? tErr.message : String(tErr)
+      if (tErr instanceof PlayerNotFoundError) {
+        return c.json({ error: `Player not found: ${name} on ${platform}` }, 404)
       }
+      return c.json({ error: `Both data sources failed. Mozambique: ${mozMsg} | Tracker.gg: ${tMsg}` }, 502)
     }
-    if (err instanceof PlayerNotFoundError) {
-      return c.json({ error: `Player not found: ${name} on ${platform}` }, 404)
-    }
-    return c.json({ error: "Internal server error" }, 500)
   }
 })
 
