@@ -168,8 +168,18 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-800 px-4 sm:px-6 py-3 sm:py-4 text-center text-xs text-neutral-600">
-        Apex Data — 基于 Tracker.gg 数据的非官方 Apex Legends 分析工具
+      <footer className="border-t border-neutral-800 px-4 sm:px-6 py-3 sm:py-4 text-center text-xs text-neutral-600 space-y-1.5">
+        <p>Apex Data — 基于 Tracker.gg 数据的非官方 Apex Legends 分析工具</p>
+        <p>
+          <a
+            href="https://github.com/ZeePgm/apex-data/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-neutral-500 hover:text-neutral-300 underline underline-offset-2 transition-colors"
+          >
+            问题反馈 & 功能建议
+          </a>
+        </p>
       </footer>
     </div>
   )
