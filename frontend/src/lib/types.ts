@@ -45,7 +45,7 @@ export interface MapInfo {
   code: string
   remainingSecs: number
   remainingTimer: string
-  assetUrl: string
+  assetUrl: string | null
 }
 
 export interface MapRotation {

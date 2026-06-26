@@ -3,6 +3,7 @@ import { cors } from "hono/cors"
 import type { Env } from "./types"
 import { getPlayerProfile, PlayerNotFoundError, UpstreamError as TUpstreamError } from "./services/tracker"
 import { getMapRotation, getPlayerProfileMozambique, UpstreamError as MUpstreamError } from "./services/mozambique"
+import { getMapRotationAlphaLeagues } from "./services/alphaleagues"
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -72,21 +73,31 @@ type HonoContext = {
 // ========== API 路由 ==========
 const api = new Hono<{ Bindings: Env }>()
 
-// 地图轮换 — 优雅降级，失败时返回空数据而非 502
+// 地图轮换 — AlphaLeagues（免费无 Key）主 → Mozambique 备 → 优雅降级
 api.get("/map-rotation", async (c) => {
+  // Try AlphaLeagues first (free, no API key needed)
   try {
-    const data = await cachedGet("map-rotation", 300, () => getMapRotation(c.env), c)
+    const data = await cachedGet("map-rotation:al", 300, () => getMapRotationAlphaLeagues(), c)
+    c.header("X-Data-Source", "alphaleagues")
     return c.json(data)
-  } catch (err) {
-    // Return empty rotation with error info — frontend shows "暂不可用"
-    const msg = err instanceof MUpstreamError ? err.message : "Map data temporarily unavailable"
-    console.warn("Map rotation failed:", msg)
-    return c.json({
-      battle_royale: { current: null, next: null },
-      ranked: { current: null, next: null },
-      ltm: { current: null, next: null },
-      _error: msg,
-    })
+  } catch (alErr) {
+    console.warn("AlphaLeagues map failed:", (alErr as Error).message)
+    // Fallback to Mozambique
+    try {
+      const data = await cachedGet("map-rotation", 300, () => getMapRotation(c.env), c)
+      c.header("X-Data-Source", "mozambique")
+      return c.json(data)
+    } catch (mozErr) {
+      // Both failed — return empty rotation with error info
+      const msg = mozErr instanceof MUpstreamError ? mozErr.message : "Map data temporarily unavailable"
+      console.warn("All map sources failed:", msg)
+      return c.json({
+        battle_royale: { current: null, next: null },
+        ranked: { current: null, next: null },
+        ltm: { current: null, next: null },
+        _error: msg,
+      })
+    }
   }
 })
 

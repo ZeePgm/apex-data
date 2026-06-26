@@ -6,6 +6,7 @@ import { cors } from "hono/cors"
 import type { Env } from "../src/types"
 import { getPlayerProfile, PlayerNotFoundError, UpstreamError as TUpstreamError } from "../src/services/tracker"
 import { getMapRotation, getPlayerProfileMozambique, UpstreamError as MUpstreamError } from "../src/services/mozambique"
+import { getMapRotationAlphaLeagues } from "../src/services/alphaleagues"
 
 const app = new Hono()
 
@@ -46,16 +47,28 @@ async function cachedGet(key: string, ttlSeconds: number, fetchFn: () => Promise
   return data
 }
 
-// 地图轮换
+// 地图轮换 — AlphaLeagues（免费无 Key）主 → Mozambique 备 → 优雅降级
 app.get("/api/map-rotation", async (c) => {
   try {
-    const data = await cachedGet("map-rotation", 300, () => getMapRotation(getEnv()), c)
+    const data = await cachedGet("map-rotation:al", 300, () => getMapRotationAlphaLeagues(), c)
+    c.header("X-Data-Source", "alphaleagues")
     return c.json(data)
-  } catch (err) {
-    if (err instanceof MUpstreamError) {
-      return c.json({ error: err.message }, 502)
+  } catch (alErr) {
+    console.warn("AlphaLeagues map failed:", (alErr as Error).message)
+    try {
+      const data = await cachedGet("map-rotation", 300, () => getMapRotation(getEnv()), c)
+      c.header("X-Data-Source", "mozambique")
+      return c.json(data)
+    } catch (mozErr) {
+      const msg = mozErr instanceof MUpstreamError ? mozErr.message : "Map data temporarily unavailable"
+      console.warn("All map sources failed:", msg)
+      return c.json({
+        battle_royale: { current: null, next: null },
+        ranked: { current: null, next: null },
+        ltm: { current: null, next: null },
+        _error: msg,
+      })
     }
-    return c.json({ error: "Internal server error" }, 500)
   }
 })
 

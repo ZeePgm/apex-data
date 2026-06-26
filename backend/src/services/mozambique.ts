@@ -37,7 +37,7 @@ export interface MapEntry {
   code: string
   remainingSecs: number
   remainingTimer: string
-  assetUrl: string
+  assetUrl: string | null
 }
 
 export interface MapRotation {
