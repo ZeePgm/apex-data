@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import type { Env } from "./types"
 import { getPlayerProfile, PlayerNotFoundError, UpstreamError as TUpstreamError } from "./services/tracker"
-import { getMapRotation, UpstreamError as MUpstreamError } from "./services/mozambique"
+import { getMapRotation, getPlayerProfileMozambique, UpstreamError as MUpstreamError } from "./services/mozambique"
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -85,7 +85,7 @@ api.get("/map-rotation", async (c) => {
   }
 })
 
-// 玩家查询
+// 玩家查询（Tracker.gg 为主，Mozambique 为回退）
 api.get("/player/:platform/:name", async (c) => {
   const { platform, name } = c.req.param()
 
@@ -95,16 +95,29 @@ api.get("/player/:platform/:name", async (c) => {
     return c.json({ error: "Invalid platform. Use: origin, xbl, or psn" }, 400)
   }
 
+  const cacheKey = `player:${platform}:${name.toLowerCase()}`
+
+  // Try Tracker.gg first (cached)
   try {
-    const cacheKey = `player:${platform}:${name.toLowerCase()}`
     const data = await cachedGet(cacheKey, 1800, () => getPlayerProfile(platform, name, c.env), c)
+    c.header("X-Data-Source", "tracker.gg")
     return c.json(data)
   } catch (err) {
+    // If Tracker.gg fails with UpstreamError (403/network), try Mozambique
+    if (err instanceof TUpstreamError) {
+      try {
+        const data = await cachedGet(cacheKey + ":moz", 1800, () => getPlayerProfileMozambique(platform, name, c.env), c)
+        c.header("X-Data-Source", "mozambique")
+        return c.json(data)
+      } catch (mozErr) {
+        if (mozErr instanceof MUpstreamError) {
+          return c.json({ error: `Both data sources failed. Tracker.gg: ${err.message}. Mozambique: ${mozErr.message}` }, 502)
+        }
+        return c.json({ error: `Both data sources failed. Tracker.gg: ${err.message}` }, 502)
+      }
+    }
     if (err instanceof PlayerNotFoundError) {
       return c.json({ error: `Player not found: ${name} on ${platform}` }, 404)
-    }
-    if (err instanceof TUpstreamError) {
-      return c.json({ error: err.message }, 502)
     }
     return c.json({ error: "Internal server error" }, 500)
   }

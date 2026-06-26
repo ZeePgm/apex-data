@@ -126,8 +126,11 @@ export async function getPlayerProfile(
       const res = await fetch(url, {
         headers: {
           "TRN-Api-Key": env.TRACKER_API_KEY,
-          "User-Agent": "apex-data-mvp/0.1",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
           Accept: "application/json",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "no-cache",
         },
         signal: controller.signal,
       })
@@ -140,7 +143,15 @@ export async function getPlayerProfile(
         }
         // 403 is non-retryable — auth/blocked
         if (res.status === 403) {
-          throw new UpstreamError(`Tracker.gg access denied (403). API key may be invalid or request blocked.`)
+          const body = await res.text().catch(() => "")
+          throw new UpstreamError(
+            `Tracker.gg access denied (403). ` +
+            `Possible causes: 1) API key pending approval at tracker.gg/developers; ` +
+            `2) API key revoked or expired; ` +
+            `3) Cloudflare bot detection blocked the Worker IP. ` +
+            `Action: visit https://tracker.gg/developers to check your app status. ` +
+            `If key is approved, try regenerating a new key.`
+          )
         }
         // 429 and 5xx are retryable
         throw new UpstreamHttpError(
