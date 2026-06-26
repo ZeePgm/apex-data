@@ -85,15 +85,25 @@ export async function getMapRotation(env: Env): Promise<MapRotation> {
       clearTimeout(timer)
 
       if (!res.ok) {
-        // 403 is non-retryable — auth issue
+        // Try to read error body for actionable messages
+        let errorMsg = ""
+        try {
+          const errBody = await res.json() as { Error?: string; error?: string }
+          errorMsg = errBody.Error ?? errBody.error ?? ""
+        } catch { /* ignore parse errors */ }
+        const fullMsg = errorMsg
+          ? `Mozambique: ${errorMsg}`
+          : `Mozambique returned ${res.status}`
+
+        // 403 and 429-with-verify-message are non-retryable — auth/account issue
         if (res.status === 403) {
-          throw new UpstreamError(`Mozambique access denied (403). API key may be invalid.`)
+          throw new UpstreamError(fullMsg)
         }
-        // 429 and 5xx are retryable
-        throw new UpstreamHttpError(
-          `Mozambique returned ${res.status}`,
-          res.status,
-        )
+        if (res.status === 429 && errorMsg.toLowerCase().includes("verify")) {
+          throw new UpstreamError(fullMsg)
+        }
+        // Other 429 and 5xx are retryable
+        throw new UpstreamHttpError(fullMsg, res.status)
       }
 
       const data: MozambiqueMapRotationResponse = await res.json()
@@ -230,7 +240,20 @@ export async function getPlayerProfileMozambique(
       throw new UpstreamError(`Mozambique access denied (403). API key may be invalid.`)
     }
     if (!res.ok) {
-      throw new UpstreamHttpError(`Mozambique returned ${res.status}`, res.status)
+      // Try to read error body for actionable messages
+      let errorMsg = ""
+      try {
+        const errBody = await res.json() as { Error?: string; error?: string }
+        errorMsg = errBody.Error ?? errBody.error ?? ""
+      } catch { /* ignore parse errors */ }
+      const fullMsg = errorMsg
+        ? `Mozambique: ${errorMsg}`
+        : `Mozambique returned ${res.status}`
+      // 429-with-verify-message is non-retryable
+      if (res.status === 429 && errorMsg.toLowerCase().includes("verify")) {
+        throw new UpstreamError(fullMsg)
+      }
+      throw new UpstreamHttpError(fullMsg, res.status)
     }
 
     const data: MozambiquePlayerResponse = await res.json()

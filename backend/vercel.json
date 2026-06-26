@@ -1,5 +1,5 @@
 {
-  "buildCommand": "",
+  "buildCommand": "npx esbuild api/index.ts --bundle --format=esm --platform=node --outfile=api/index.js --external:@cloudflare/workers-types --external:wrangler",
   "outputDirectory": ".",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }

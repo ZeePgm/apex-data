@@ -1,9 +1,8 @@
 import type { PlayerProfile, MapRotation } from "./types"
 
-// 双后端部署：Vercel 为主（IP 段不同，可能不被 Tracker.gg 拦截），Workers 为备
+// Workers 后端（Vercel 后端已不可用）
 const BACKENDS = [
-  "https://backend-psi-six-18.vercel.app",               // Vercel Serverless（主）
-  "https://apex-data-api.admitted-tower.workers.dev",    // Cloudflare Workers（备）
+  "https://apex-data-api.admitted-tower.workers.dev",    // Cloudflare Workers
 ]
 
 async function tryFetch(path: string): Promise<Response> {

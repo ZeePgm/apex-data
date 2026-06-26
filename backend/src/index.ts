@@ -72,16 +72,21 @@ type HonoContext = {
 // ========== API 路由 ==========
 const api = new Hono<{ Bindings: Env }>()
 
-// 地图轮换
+// 地图轮换 — 优雅降级，失败时返回空数据而非 502
 api.get("/map-rotation", async (c) => {
   try {
     const data = await cachedGet("map-rotation", 300, () => getMapRotation(c.env), c)
     return c.json(data)
   } catch (err) {
-    if (err instanceof MUpstreamError) {
-      return c.json({ error: err.message }, 502)
-    }
-    return c.json({ error: "Internal server error" }, 500)
+    // Return empty rotation with error info — frontend shows "暂不可用"
+    const msg = err instanceof MUpstreamError ? err.message : "Map data temporarily unavailable"
+    console.warn("Map rotation failed:", msg)
+    return c.json({
+      battle_royale: { current: null, next: null },
+      ranked: { current: null, next: null },
+      ltm: { current: null, next: null },
+      _error: msg,
+    })
   }
 })
 
