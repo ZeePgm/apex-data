@@ -1,5 +1,6 @@
 // Vercel Serverless 入口 — 与 Cloudflare Workers 共用同一个 Hono app
 // 通过环境变量注入 API Key，而非 wrangler.toml bindings
+/// <reference types="node" />
 import { handle } from "hono/vercel"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
