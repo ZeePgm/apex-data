@@ -208,7 +208,7 @@ export async function getPlayerProfileMozambique(
 ): Promise<import("./tracker").PlayerProfile> {
   // Map platform codes for Mozambique API
   const mozPlatform = platform === "xbl" ? "X1" : platform === "psn" ? "PS4" : "PC"
-  const url = `${API_BASE}/bridge?auth=${encodeURIComponent(env.MOZAMBIQUE_API_KEY)}&player=${encodeURIComponent(identifier)}&platform=${mozPlatform}`
+  const url = `${API_BASE}/bridge?version=5&auth=${encodeURIComponent(env.MOZAMBIQUE_API_KEY)}&player=${encodeURIComponent(identifier)}&platform=${mozPlatform}`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT)
