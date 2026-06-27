@@ -8,9 +8,12 @@ account_id = "298672578e36aa170df1d30f29703a0d"
 #   { binding = "API_CACHE", id = "xxx" }
 # ]
 
-[vars]
-TRACKER_API_KEY = "98c1a5cf-793f-4932-8c2d-ae73dfa5b0d7"
-MOZAMBIQUE_API_KEY = "df4864ce3a1c5b947ed32867dbb9d43f"
+# API keys are configured as Cloudflare Worker secrets, not committed here.
+# Set production secrets with:
+#   npx wrangler secret put TRACKER_API_KEY
+#   npx wrangler secret put MOZAMBIQUE_API_KEY
+#
+# For local development, copy .dev.vars.example to .dev.vars and fill real values.
 
 [observability]
 enabled = true
